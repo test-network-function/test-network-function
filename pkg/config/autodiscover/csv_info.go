@@ -71,17 +71,16 @@ func (csv *CSVResource) annotationUnmarshalError(annotationKey string, err error
 // GetCSVsByLabel will return all CSVs with a given label value. If `labelValue` is an empty string, all CSVs with that
 // label will be returned, regardless of the labels value.
 func GetCSVsByLabel(labelName, labelValue, namespace string) (*CSVList, error) {
-	cmd := makeGetCommand(resourceTypeCSV, buildLabelQuery(configsections.Label{Prefix: tnfLabelPrefix, Name: labelName, Value: labelValue}), namespace)
+	out, err := makeGetCommand(resourceTypeCSV, buildLabelQuery(configsections.Label{Prefix: tnfLabelPrefix, Name: labelName, Value: labelValue}), namespace)
 
-	out, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
 	log.Debug("JSON output for all pods labeled with: ", labelName)
-	log.Debug("Command: ", cmd)
-	log.Debug(string(out))
+	log.Debug("Command: ", out)
+
 	var csvList CSVList
-	err = json.Unmarshal(out, &csvList)
+	err = json.Unmarshal([]byte(out), &csvList)
 	if err != nil {
 		return nil, err
 	}

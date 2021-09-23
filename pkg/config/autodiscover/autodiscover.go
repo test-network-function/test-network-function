@@ -19,18 +19,23 @@ package autodiscover
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"strconv"
+	"time"
 
+	"github.com/onsi/gomega"
 	log "github.com/sirupsen/logrus"
 	"github.com/test-network-function/test-network-function/pkg/config/configsections"
+	"github.com/test-network-function/test-network-function/pkg/tnf"
+	"github.com/test-network-function/test-network-function/pkg/tnf/handlers/command"
+	"github.com/test-network-function/test-network-function/pkg/tnf/reel"
+	"github.com/test-network-function/test-network-function/test-network-function/common"
 )
 
 const (
 	disableAutodiscoverEnvVar = "TNF_DISABLE_CONFIG_AUTODISCOVER"
 	tnfLabelPrefix            = "test-network-function.com"
 	labelTemplate             = "%s/%s"
-
+	makeGetCommandTimeout     = 2
 	// anyLabelValue is the value that will allow any value for a label when building the label query.
 	anyLabelValue = ""
 )
@@ -60,12 +65,17 @@ func buildLabelQuery(label configsections.Label) string {
 	return fullLabelName
 }
 
-func makeGetCommand(resourceType, labelQuery, namespace string) *exec.Cmd {
-	// TODO: shell expecter
-	cmd := exec.Command("oc", "get", resourceType, "-n", namespace, "-o", "json", "-l", labelQuery)
-	log.Debug("Issuing get command ", cmd.Args)
+func makeGetCommand(resourceType, labelQuery, namespace string) (string, error) {
+	handler := command.NewCommand(time.Duration(makeGetCommandTimeout)*time.Second, resourceType, labelQuery, namespace)
+	test, err := tnf.NewTest(common.GetContext().GetExpecter(), handler, []reel.Handler{handler}, common.GetContext().GetErrorChannel())
+	gomega.Expect(err).To(gomega.BeNil())
+	testResult, err := test.Run()
 
-	return cmd
+	if testResult != tnf.SUCCESS {
+		log.Error("Oc get command failed -> ", handler.Args())
+	}
+
+	return handler.Output, err
 }
 
 // getContainersByLabel builds `config.Container`s from containers in pods matching a label.
